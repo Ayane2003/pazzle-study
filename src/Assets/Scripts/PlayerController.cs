@@ -5,8 +5,8 @@ using UnityEngine.UIElements;
 
 public class PlayerController : MonoBehaviour
 {
-    const float TRANS_TIME = 0.05f;
-    const float ROT_TIME = 0.05f;
+    const int TRANS_TIME = 3;
+    const int ROT_TIME = 3;
     enum RotState
     {
         Up = 0,
@@ -26,6 +26,8 @@ public class PlayerController : MonoBehaviour
     AnimationController _animationController = new AnimationController();
     Vector2Int _last_position;
     RotState _last_rotate = RotState.Up;
+
+    LogicalInput logicalInput = new();
 
     // Start is called before the first frame update
     void Start()
@@ -60,7 +62,7 @@ public class PlayerController : MonoBehaviour
         return true;
     }
 
-    void SetTransition(Vector2Int pos, RotState rot, float time)
+    void SetTransition(Vector2Int pos, RotState rot, int time)
     {
         _last_position = _position;
         _last_rotate = _rotate;
@@ -77,7 +79,7 @@ public class PlayerController : MonoBehaviour
         if (!CanMove(pos, _rotate)) return false;
 
         //é¿ç€Ç…à⁄ìÆ
-        SetTransition(pos, _rotate, TRANS_TIME);
+        SetTransition(pos, _rotate,TRANS_TIME);
 
         return true;
     }
@@ -123,36 +125,63 @@ public class PlayerController : MonoBehaviour
         return true;
     }
 
+    static readonly KeyCode[] key_code_tbl = new KeyCode[(int)LogicalInput.Key.Max]
+    {
+        KeyCode.RightArrow,
+        KeyCode.LeftArrow,
+        KeyCode.X,
+        KeyCode.Z,
+        KeyCode.UpArrow,
+        KeyCode.DownArrow,
+    };
+
+    void UpdateInput()
+    {
+        LogicalInput.Key inputDev = 0;
+
+        for(int i = 0;i<(int)LogicalInput.Key.Max;i++)
+        {
+            if (Input.GetKey(key_code_tbl[i]))
+            {
+                inputDev |= (LogicalInput.Key)(1 << i);
+            }
+        }
+
+        logicalInput.Update(inputDev);
+    }
+
     void Control()
     {
-        if (Input.GetKeyDown(KeyCode.RightArrow))
+        if(logicalInput.IsRepeat(LogicalInput.Key.Right))
         {
             if (Translate(true)) return;
         }
-        if (Input.GetKeyDown(KeyCode.LeftArrow))
+        if (logicalInput.IsRepeat(LogicalInput.Key.Left))
         {
             if (Translate(false)) return;
         }
 
-        if (Input.GetKeyDown(KeyCode.X))
+        if(logicalInput.IsTrigger(LogicalInput.Key.RtoR))
         {
             if (Rotate(true)) return;
         }
-        if (Input.GetKeyDown(KeyCode.Z))
+        if (logicalInput.IsTrigger(LogicalInput.Key.RtoL))
         {
-            if (Rotate(false)) return;
+            if(Rotate(false)) return;
         }
 
-        if (Input.GetKey(KeyCode.UpArrow))
+        if (logicalInput.IsRelease(LogicalInput.Key.GuickDrop))
         {
             QuickDrop();
         }
     }
 
     // Update is called once per frame
-    void Update()
+    void FixedUpdate()
     {
-        if (!_animationController.Update(Time.deltaTime))
+        UpdateInput();
+
+        if (!_animationController.Update())
         {
             Control();
         }
