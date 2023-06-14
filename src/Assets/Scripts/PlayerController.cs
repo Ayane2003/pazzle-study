@@ -1,12 +1,16 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UIElements;
 
 public class PlayerController : MonoBehaviour
 {
     const int TRANS_TIME = 3;
     const int ROT_TIME = 3;
+
+    const int FALL_COUNT_UNIT = 120;
+    const int FALL_COUNT_SPD = 10;
+    const int FALL_COUNT_FAST_SPD = 20;
+    const int GROUND_FRAMES = 50;
     enum RotState
     {
         Up = 0,
@@ -15,7 +19,8 @@ public class PlayerController : MonoBehaviour
         Left = 3,
 
         Invalid = -1,
-    }
+    };
+
 
     [SerializeField] PuyoController[] _puyoControllers = new PuyoController[2] { default!, default! };
     [SerializeField] BoardController boardController = default!;
@@ -28,6 +33,9 @@ public class PlayerController : MonoBehaviour
     RotState _last_rotate = RotState.Up;
 
     LogicalInput logicalInput = new();
+
+    int _fallCount = 0;
+    int _groundFrames = GROUND_FRAMES;
 
     // Start is called before the first frame update
     void Start()
@@ -150,8 +158,43 @@ public class PlayerController : MonoBehaviour
         logicalInput.Update(inputDev);
     }
 
+    bool Fall(bool is_fast)
+    {
+        _fallCount -= is_fast ? FALL_COUNT_FAST_SPD : FALL_COUNT_SPD;
+
+        while (_fallCount< 0)
+        {
+            if (!CanMove(_position + Vector2Int.down, _rotate))
+            {
+                _fallCount = 0;
+                if (0 < --_groundFrames)
+                {
+                    return true;
+                }
+                    Settle();
+                return false;
+            }
+
+            _position += Vector2Int.down;
+            _last_position += Vector2Int.down;
+            _fallCount += FALL_COUNT_UNIT;
+        }
+
+        return true;
+    }
     void Control()
     {
+        //—Ž‚Æ‚·
+        if (!Fall(logicalInput.IsRaw(LogicalInput.Key.Down)))
+        {
+            return;
+        }
+
+        if (_animationController.Update())
+        {
+            return;
+        }
+
         if(logicalInput.IsRepeat(LogicalInput.Key.Right))
         {
             if (Translate(true)) return;
@@ -181,16 +224,24 @@ public class PlayerController : MonoBehaviour
     {
         UpdateInput();
 
-        if (!_animationController.Update())
-        {
-            Control();
-        }
+        Control();
 
+        Vector3 dy = Vector3.up * (float)_fallCount / (float)FALL_COUNT_UNIT;
         float anim_rate = _animationController.GetNormalized();
-        _puyoControllers[0].SetPos(Interpolate(_position, RotState.Invalid, _last_position, RotState.Invalid, anim_rate));
-        _puyoControllers[1].SetPos(Interpolate(_position, _rotate, _last_position, _last_rotate, anim_rate));
+        _puyoControllers[0].SetPos(dy+ Interpolate(_position, RotState.Invalid, _last_position, RotState.Invalid, anim_rate));
+        _puyoControllers[1].SetPos(dy+ Interpolate(_position, _rotate, _last_position, _last_rotate, anim_rate));
     }
 
+    void Settle()
+    {
+        bool is_set0 = boardController.Settle(_position, (int)_puyoControllers[0].GetPuyoType());
+        Debug.Assert(is_set0);
+
+        bool is_set1 = boardController.Settle(CalcChildPuyoPos(_position, _rotate), (int)_puyoControllers[1].GetPuyoType());
+        Debug.Assert(is_set1);
+
+        gameObject.SetActive(false);
+    }
     void QuickDrop()
     {
         Vector2Int pos = _position;
@@ -202,15 +253,7 @@ public class PlayerController : MonoBehaviour
 
         _position = pos;
 
-        bool is_set0 = boardController.Settle(_position,
-            (int)_puyoControllers[0].GetPuyoType());
-        Debug.Assert(is_set0);
-
-        bool is_set1 = boardController.Settle(CalcChildPuyoPos(_position, _rotate),
-            (int)_puyoControllers[1].GetPuyoType());
-        Debug.Assert(is_set1);
-
-        gameObject.SetActive(false);
+        Settle();
     }
 
     static Vector3 Interpolate(Vector2Int pos, RotState rot, Vector2Int pos_last, RotState rot_last, float rate)
