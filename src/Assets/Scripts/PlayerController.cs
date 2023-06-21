@@ -32,7 +32,7 @@ public class PlayerController : MonoBehaviour
     Vector2Int _last_position;
     RotState _last_rotate = RotState.Up;
 
-    LogicalInput logicalInput = new();
+    LogicalInput _logicalInput = new();
 
     int _fallCount = 0;
     int _groundFrames = GROUND_FRAMES;
@@ -40,18 +40,42 @@ public class PlayerController : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        //決め打ちで色を決定
-        _puyoControllers[0].SetPuyoType(PuyoType.Green);
-        _puyoControllers[1].SetPuyoType(PuyoType.Red);
+        gameObject.SetActive(false);
+    }
 
-        _position = new Vector2Int(2, 12);
-        _rotate = RotState.Up;
+    public bool Spawn(PuyoType axis,PuyoType child)
+    {
+        //初期位置に出せるか
+        Vector2Int position = new(2, 12);
+        RotState rotate = RotState.Up;
+        if(!CanMove(position,rotate))
+        {
+            return false;
+        }
+
+        _position = _last_position = position;
+        _rotate = _last_rotate = rotate;
+        _animationController.Set(1);
+        _fallCount = 0;
+        _groundFrames = GROUND_FRAMES;
+
+        //決め打ちで色を決定
+        _puyoControllers[0].SetPuyoType(axis);
+        _puyoControllers[1].SetPuyoType(child);
 
         _puyoControllers[0].SetPos(new Vector3((float)_position.x, (float)_position.y, 0.0f));
         Vector2Int posChild = CalcChildPuyoPos(_position, _rotate);
         _puyoControllers[1].SetPos(new Vector3((float)posChild.x, (float)posChild.y, 0.0f));
+
+        gameObject.SetActive(true);
+
+        return true;
     }
 
+    public void SetLogicalInput(LogicalInput reference)
+    {
+        _logicalInput = reference;
+    }
     static readonly Vector2Int[] rotate_tbl = new Vector2Int[]
     {
         Vector2Int.up,Vector2Int.right,Vector2Int.down,Vector2Int.left
@@ -133,32 +157,7 @@ public class PlayerController : MonoBehaviour
         return true;
     }
 
-    static readonly KeyCode[] key_code_tbl = new KeyCode[(int)LogicalInput.Key.Max]
-    {
-        KeyCode.RightArrow,
-        KeyCode.LeftArrow,
-        KeyCode.X,
-        KeyCode.Z,
-        KeyCode.UpArrow,
-        KeyCode.DownArrow,
-    };
-
-    void UpdateInput()
-    {
-        LogicalInput.Key inputDev = 0;
-
-        for(int i = 0;i<(int)LogicalInput.Key.Max;i++)
-        {
-            if (Input.GetKey(key_code_tbl[i]))
-            {
-                inputDev |= (LogicalInput.Key)(1 << i);
-            }
-        }
-
-        logicalInput.Update(inputDev);
-    }
-
-    bool Fall(bool is_fast)
+      bool Fall(bool is_fast)
     {
         _fallCount -= is_fast ? FALL_COUNT_FAST_SPD : FALL_COUNT_SPD;
 
@@ -185,7 +184,7 @@ public class PlayerController : MonoBehaviour
     void Control()
     {
         //落とす
-        if (!Fall(logicalInput.IsRaw(LogicalInput.Key.Down)))
+        if (!Fall(_logicalInput.IsRaw(LogicalInput.Key.Down)))
         {
             return;
         }
@@ -195,25 +194,25 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        if(logicalInput.IsRepeat(LogicalInput.Key.Right))
+        if(_logicalInput.IsRepeat(LogicalInput.Key.Right))
         {
             if (Translate(true)) return;
         }
-        if (logicalInput.IsRepeat(LogicalInput.Key.Left))
+        if (_logicalInput.IsRepeat(LogicalInput.Key.Left))
         {
             if (Translate(false)) return;
         }
 
-        if(logicalInput.IsTrigger(LogicalInput.Key.RtoR))
+        if(_logicalInput.IsTrigger(LogicalInput.Key.RtoR))
         {
             if (Rotate(true)) return;
         }
-        if (logicalInput.IsTrigger(LogicalInput.Key.RtoL))
+        if (_logicalInput.IsTrigger(LogicalInput.Key.RtoL))
         {
             if(Rotate(false)) return;
         }
 
-        if (logicalInput.IsRelease(LogicalInput.Key.GuickDrop))
+        if (_logicalInput.IsRelease(LogicalInput.Key.GuickDrop))
         {
             QuickDrop();
         }
@@ -222,8 +221,6 @@ public class PlayerController : MonoBehaviour
     // Update is called once per frame
     void FixedUpdate()
     {
-        UpdateInput();
-
         Control();
 
         Vector3 dy = Vector3.up * (float)_fallCount / (float)FALL_COUNT_UNIT;
