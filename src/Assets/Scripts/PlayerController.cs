@@ -46,7 +46,7 @@ public class PlayerController : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-//        gameObject.SetActive(false);// ‚Õ‚æ‚Ìí—Ş‚ªİ’è‚³‚ê‚é‚Ü‚Å–°‚é
+//f        gameObject.SetActive(false);// ‚Õ‚æ‚Ìí—Ş‚ªİ’è‚³‚ê‚é‚Ü‚Å–°‚é
     }
 
     public void SetLogicalInput(LogicalInput reference)
